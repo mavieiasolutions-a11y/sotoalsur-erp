@@ -33,7 +33,7 @@ const DEFAULT_HORARIOS = [
   { id: 'h-1', empleado_id: 'mock-trabajador-id', obra_id: 'obra-1', marca_entrada: '2026-07-10T08:00:00Z', marca_salida: '2026-07-10T16:30:00Z', latitud_entrada: 36.834, longitud_entrada: -2.463, latitud_salida: 36.835, longitud_salida: -2.464, horas_computadas: 8.5 }
 ]
 
-const DEFAULT_NOMINAS = []
+const DEFAULT_NOMINAS: any[] = []
 
 const DEFAULT_DOCUMENTOS = [
   { id: 'doc-1', obra_id: 'obra-1', nombre_archivo: 'plano_cimentacion_revisado.pdf', tipo: 'PLANO', url_storage: '#', contenido_ocr: null, subido_por: 'mock-propietario-id', created_at: new Date().toISOString() }
