@@ -317,3 +317,27 @@ CREATE INDEX IF NOT EXISTS idx_documentos_embedding
 -- INSERT INTO storage.buckets (id, name, public) VALUES ('documentos', 'documentos', false);
 -- INSERT INTO storage.buckets (id, name, public) VALUES ('comprobantes', 'comprobantes', false);
 -- ============================================================
+
+-- ============================================================
+-- TRIGGER AUTOMÁTICO DE PERFILES AL CREAR USUARIO EN AUTH
+-- ============================================================
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS trigger AS $$
+BEGIN
+  INSERT INTO public.perfiles_empleados (id, nombre_completo, email, rol, costo_hora_base, activo)
+  VALUES (
+    new.id,
+    COALESCE(new.raw_user_meta_data->>'nombre_completo', split_part(new.email, '@', 1)),
+    new.email,
+    COALESCE((new.raw_user_meta_data->>'rol')::tipo_rol, 'TRABAJADOR'::tipo_rol),
+    COALESCE((new.raw_user_meta_data->>'costo_hora_base')::numeric, 0.00),
+    true
+  );
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+CREATE OR REPLACE TRIGGER on_auth_user_created
+  AFTER INSERT ON auth.users
+  FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
+
