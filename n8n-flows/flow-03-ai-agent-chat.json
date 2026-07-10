@@ -1,0 +1,283 @@
+{
+  "name": "SotoAlsur — AI Agent Chat (RAG + Finanzas)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "ai-chat",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-chat",
+      "name": "Webhook — Recibir Pregunta",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 400],
+      "webhookId": "ai-chat-webhook"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "user_message",
+              "name": "user_message",
+              "value": "={{ $json.body.message }}",
+              "type": "string"
+            },
+            {
+              "id": "session_id",
+              "name": "session_id",
+              "value": "={{ $json.body.session_id ?? 'default-session' }}",
+              "type": "string"
+            },
+            {
+              "id": "user_id",
+              "name": "user_id",
+              "value": "={{ $json.body.user_id }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "set-input",
+      "name": "Set — Extraer Parámetros",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [460, 400]
+    },
+    {
+      "parameters": {
+        "agent": "toolsAgent",
+        "promptType": "define",
+        "text": "={{ $json.user_message }}",
+        "hasOutputParser": false,
+        "options": {
+          "systemMessage": "Eres el Asistente de Gestión de SotoAlsur, un ERP empresarial para gestión de obras de construcción. Tienes acceso a las siguientes herramientas para responder preguntas del equipo:\n\n1. **interrogar_db_financiera**: Úsala para consultar datos financieros, estados de cuenta, gastos por obra, pagos pendientes, nóminas, etc.\n2. **buscar_contexto_rag**: Úsala para buscar en documentos técnicos (planos, contratos, albaranes) cuando la pregunta sea sobre detalles específicos de proyectos o documentación.\n\nPautas de comportamiento:\n- Responde SIEMPRE en español.\n- Sé conciso y directo. Usa tablas markdown cuando presentes datos numéricos.\n- Si no tienes datos suficientes para responder, dilo claramente.\n- NUNCA inventes cifras o datos. Solo usa lo que devuelvan las herramientas.\n- Para consultas financieras, siempre muestra: concepto, monto neto, IVA, total y estado de pago.\n- Protege la privacidad: no reveles datos de empleados a usuarios con rol TRABAJADOR.",
+          "maxIterations": 5
+        }
+      },
+      "id": "ai-agent",
+      "name": "AI Agent — SotoAlsur Assistant",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.7,
+      "position": [700, 400]
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gpt-4o",
+          "mode": "list",
+          "cachedResultName": "gpt-4o"
+        },
+        "options": {
+          "temperature": 0.2,
+          "maxTokens": 4000
+        }
+      },
+      "id": "openai-model",
+      "name": "OpenAI Chat Model — GPT-4o",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [580, 600],
+      "credentials": {
+        "openAiApi": {
+          "id": "YOUR_OPENAI_CREDENTIAL_ID",
+          "name": "OpenAI API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $('Set — Extraer Parámetros').item.json.session_id }}",
+        "contextWindowLength": 10
+      },
+      "id": "memory-buffer",
+      "name": "Window Buffer Memory",
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.3,
+      "position": [820, 600]
+    },
+    {
+      "parameters": {
+        "name": "interrogar_db_financiera",
+        "description": "Consulta la base de datos financiera de SotoAlsur para obtener información sobre obras, gastos, ingresos, nóminas o estados de cuenta. Pasa el tipo de consulta en el parámetro 'query_type' y filtros opcionales en 'filters'. Tipos disponibles: 'obras_activas', 'gastos_por_obra', 'pagos_pendientes', 'resumen_financiero', 'nominas_mes', 'vehiculos_flota'.",
+        "workflowId": {
+          "__rl": true,
+          "value": "TOOL_WORKFLOW_DB_ID",
+          "mode": "id"
+        },
+        "fields": {
+          "values": [
+            {
+              "name": "query_type",
+              "description": "Tipo de consulta: obras_activas | gastos_por_obra | pagos_pendientes | resumen_financiero | nominas_mes | vehiculos_flota",
+              "type": "string",
+              "required": true
+            },
+            {
+              "name": "filters",
+              "description": "Filtros JSON opcionales como obra_id, mes, año, estado, etc.",
+              "type": "string",
+              "required": false
+            }
+          ]
+        }
+      },
+      "id": "tool-db-financiera",
+      "name": "Tool — interrogar_db_financiera",
+      "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+      "typeVersion": 2,
+      "position": [580, 760]
+    },
+    {
+      "parameters": {
+        "name": "buscar_contexto_rag",
+        "description": "Busca en los documentos técnicos indexados (planos, contratos, albaranes, facturas) de SotoAlsur usando búsqueda semántica. Pasa la consulta en lenguaje natural en el parámetro 'query' y opcionalmente el 'obra_id' para limitar la búsqueda a una obra específica.",
+        "method": "POST",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/rpc/buscar_documentos_similares",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.SUPABASE_ANON_KEY }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.SUPABASE_SERVICE_ROLE_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={ \"query_embedding\": \"VECTOR_PLACEHOLDER\", \"similarity_threshold\": 0.75, \"match_count\": 5 }",
+        "toolDescription": "Busca fragmentos relevantes en documentación de obras usando similitud semántica. Devuelve los fragmentos más relevantes de planos, contratos y albaranes."
+      },
+      "id": "tool-rag-search",
+      "name": "Tool — buscar_contexto_rag",
+      "type": "@n8n/n8n-nodes-langchain.toolHttpRequest",
+      "typeVersion": 1.1,
+      "position": [820, 760]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: true, response: $json.output, session_id: $('Set — Extraer Parámetros').item.json.session_id }) }}",
+        "options": {}
+      },
+      "id": "respond-success",
+      "name": "Respond to Webhook — Respuesta IA",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [960, 400]
+    }
+  ],
+  "connections": {
+    "Webhook — Recibir Pregunta": {
+      "main": [
+        [
+          {
+            "node": "Set — Extraer Parámetros",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set — Extraer Parámetros": {
+      "main": [
+        [
+          {
+            "node": "AI Agent — SotoAlsur Assistant",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent — SotoAlsur Assistant": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook — Respuesta IA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model — GPT-4o": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent — SotoAlsur Assistant",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Window Buffer Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "AI Agent — SotoAlsur Assistant",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tool — interrogar_db_financiera": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent — SotoAlsur Assistant",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tool — buscar_contexto_rag": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent — SotoAlsur Assistant",
+            "type": "ai_tool",
+            "index": 1
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "errorWorkflow": ""
+  },
+  "staticData": null,
+  "tags": [
+    {
+      "createdAt": "2024-01-01T00:00:00.000Z",
+      "updatedAt": "2024-01-01T00:00:00.000Z",
+      "id": "sotoalsur-ai",
+      "name": "SotoAlsur"
+    }
+  ],
+  "triggerCount": 1,
+  "updatedAt": "2024-01-01T00:00:00.000Z",
+  "versionId": "1"
+}

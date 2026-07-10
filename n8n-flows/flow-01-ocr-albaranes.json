@@ -1,0 +1,318 @@
+{
+  "name": "SotoAlsur — OCR Albaranes",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "ocr-albaran",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-trigger",
+      "name": "Webhook — Recibir Albarán",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 300],
+      "webhookId": "ocr-albaran-webhook"
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.body.file_url }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file"
+            }
+          }
+        }
+      },
+      "id": "http-download-file",
+      "name": "HTTP Request — Descargar Archivo",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "resource": "chat",
+        "operation": "message",
+        "modelId": {
+          "__rl": true,
+          "value": "gpt-4o",
+          "mode": "list",
+          "cachedResultName": "gpt-4o"
+        },
+        "messages": {
+          "values": [
+            {
+              "role": "user",
+              "content": "Eres un asistente experto en análisis de albaranes de obra y construcción. Analiza la siguiente imagen de albarán y extrae la información en formato JSON EXACTAMENTE con esta estructura:\n{\n  \"proveedor\": \"Nombre del proveedor\",\n  \"fecha_albaran\": \"YYYY-MM-DD\",\n  \"numero_albaran\": \"Número o referencia del albarán\",\n  \"conceptos\": [\n    {\n      \"descripcion\": \"Descripción del material o servicio\",\n      \"cantidad\": 0.00,\n      \"precio_unitario\": 0.00,\n      \"subtotal\": 0.00\n    }\n  ],\n  \"monto_neto\": 0.00,\n  \"iva_porcentaje\": 21,\n  \"iva_monto\": 0.00,\n  \"total_con_iva\": 0.00,\n  \"notas\": \"Cualquier información adicional relevante\"\n}\n\nSi algún campo no está disponible en el albarán, usa null. Responde SOLO con el JSON, sin texto adicional.",
+              "contentType": "multipleInputs",
+              "multipleInputsValues": {
+                "values": [
+                  {
+                    "type": "text",
+                    "text": "Analiza este albarán:"
+                  },
+                  {
+                    "type": "image",
+                    "inputDataFieldName": "data"
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "options": {
+          "maxTokens": 2000,
+          "temperature": 0
+        }
+      },
+      "id": "openai-vision",
+      "name": "OpenAI — GPT-4o Vision OCR",
+      "type": "n8n-nodes-base.openAi",
+      "typeVersion": 1.8,
+      "position": [680, 300],
+      "credentials": {
+        "openAiApi": {
+          "id": "YOUR_OPENAI_CREDENTIAL_ID",
+          "name": "OpenAI API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": ""
+      },
+      "id": "json-parse",
+      "name": "Set — Parsear JSON Extraído",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [900, 300],
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "proveedor",
+              "name": "proveedor",
+              "value": "={{ JSON.parse($json.message.content).proveedor }}",
+              "type": "string"
+            },
+            {
+              "id": "monto_neto",
+              "name": "monto_neto",
+              "value": "={{ JSON.parse($json.message.content).monto_neto }}",
+              "type": "number"
+            },
+            {
+              "id": "iva_monto",
+              "name": "iva_monto",
+              "value": "={{ JSON.parse($json.message.content).iva_monto }}",
+              "type": "number"
+            },
+            {
+              "id": "concepto_completo",
+              "name": "concepto_completo",
+              "value": "={{ 'Albarán OCR - ' + JSON.parse($json.message.content).proveedor + ' - ' + JSON.parse($json.message.content).numero_albaran }}",
+              "type": "string"
+            },
+            {
+              "id": "fecha_emision",
+              "name": "fecha_emision",
+              "value": "={{ JSON.parse($json.message.content).fecha_albaran ?? new Date().toISOString().split('T')[0] }}",
+              "type": "string"
+            },
+            {
+              "id": "numero_factura",
+              "name": "numero_factura",
+              "value": "={{ JSON.parse($json.message.content).numero_albaran }}",
+              "type": "string"
+            },
+            {
+              "id": "obra_id",
+              "name": "obra_id",
+              "value": "={{ $('Webhook — Recibir Albarán').item.json.body.obra_id }}",
+              "type": "string"
+            },
+            {
+              "id": "comprobante_url",
+              "name": "comprobante_url",
+              "value": "={{ $('Webhook — Recibir Albarán').item.json.body.file_url }}",
+              "type": "string"
+            },
+            {
+              "id": "registrado_por",
+              "name": "registrado_por",
+              "value": "={{ $('Webhook — Recibir Albarán').item.json.body.registrado_por }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "parameters": {
+        "operation": "upsert",
+        "tableId": "contabilidad_finanzas",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "obra_id",
+              "fieldValue": "={{ $json.obra_id }}"
+            },
+            {
+              "fieldId": "concepto",
+              "fieldValue": "={{ $json.concepto_completo }}"
+            },
+            {
+              "fieldId": "monto_neto",
+              "fieldValue": "={{ $json.monto_neto }}"
+            },
+            {
+              "fieldId": "impuestos_iva",
+              "fieldValue": "={{ $json.iva_monto }}"
+            },
+            {
+              "fieldId": "tipo",
+              "fieldValue": "GASTO_MATERIAL"
+            },
+            {
+              "fieldId": "estado",
+              "fieldValue": "PENDIENTE"
+            },
+            {
+              "fieldId": "fecha_emision",
+              "fieldValue": "={{ $json.fecha_emision }}"
+            },
+            {
+              "fieldId": "numero_factura",
+              "fieldValue": "={{ $json.numero_factura }}"
+            },
+            {
+              "fieldId": "comprobante_url",
+              "fieldValue": "={{ $json.comprobante_url }}"
+            },
+            {
+              "fieldId": "registrado_por",
+              "fieldValue": "={{ $json.registrado_por }}"
+            }
+          ]
+        }
+      },
+      "id": "supabase-insert",
+      "name": "Supabase — INSERT contabilidad_finanzas",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [1120, 300],
+      "credentials": {
+        "supabaseApi": {
+          "id": "YOUR_SUPABASE_CREDENTIAL_ID",
+          "name": "Supabase API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={ \"success\": true, \"message\": \"Albarán procesado e insertado correctamente\", \"registro_id\": \"{{ $json.id }}\" }",
+        "options": {}
+      },
+      "id": "respond-webhook",
+      "name": "Respond to Webhook — Éxito",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1340, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={ \"success\": false, \"message\": \"Error procesando el albarán\", \"error\": \"{{ $json.message }}\" }",
+        "options": {
+          "responseCode": 500
+        }
+      },
+      "id": "respond-error",
+      "name": "Respond to Webhook — Error",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1340, 460]
+    }
+  ],
+  "connections": {
+    "Webhook — Recibir Albarán": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request — Descargar Archivo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request — Descargar Archivo": {
+      "main": [
+        [
+          {
+            "node": "OpenAI — GPT-4o Vision OCR",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI — GPT-4o Vision OCR": {
+      "main": [
+        [
+          {
+            "node": "Set — Parsear JSON Extraído",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set — Parsear JSON Extraído": {
+      "main": [
+        [
+          {
+            "node": "Supabase — INSERT contabilidad_finanzas",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Supabase — INSERT contabilidad_finanzas": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook — Éxito",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "errorWorkflow": ""
+  },
+  "staticData": null,
+  "tags": [
+    {
+      "createdAt": "2024-01-01T00:00:00.000Z",
+      "updatedAt": "2024-01-01T00:00:00.000Z",
+      "id": "sotoalsur-ocr",
+      "name": "SotoAlsur"
+    }
+  ],
+  "triggerCount": 1,
+  "updatedAt": "2024-01-01T00:00:00.000Z",
+  "versionId": "1"
+}
