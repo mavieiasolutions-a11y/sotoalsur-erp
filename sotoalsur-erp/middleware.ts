@@ -29,6 +29,21 @@ export async function middleware(request: NextRequest) {
     }
   )
 
+  // Comprobar si está en Modo Demo/Bypass
+  const isDummyUrl = !process.env.NEXT_PUBLIC_SUPABASE_URL || 
+                     process.env.NEXT_PUBLIC_SUPABASE_URL.includes('dummy') ||
+                     process.env.NEXT_PUBLIC_SUPABASE_URL.includes('TU_PROYECTO')
+
+  if (isDummyUrl) {
+    // En modo demo, dejamos pasar cualquier ruta. Si va a login, redirigimos a home.
+    if (request.nextUrl.pathname === '/login') {
+      const url = request.nextUrl.clone()
+      url.pathname = '/'
+      return NextResponse.redirect(url)
+    }
+    return supabaseResponse
+  }
+
   const {
     data: { user },
   } = await supabase.auth.getUser()
