@@ -62,9 +62,10 @@ interface HorasRow {
 // Component
 // ─────────────────────────────────────────────
 
+const supabase = createClient()
+
 export default function NominasPage() {
   const { perfil, loading: roleLoading, isPropietario } = useRole()
-  const supabase = createClient()
 
   // Period
   const now = new Date()

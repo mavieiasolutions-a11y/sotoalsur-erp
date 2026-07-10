@@ -38,9 +38,10 @@ interface GeoPosition {
   lng: number
 }
 
+const supabase = createClient()
+
 export default function FichajePage() {
   const { perfil, loading: roleLoading } = useRole()
-  const supabase = createClient()
 
   // State
   const [obras, setObras] = useState<ObraProyecto[]>([])

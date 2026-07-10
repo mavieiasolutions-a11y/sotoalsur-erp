@@ -73,8 +73,9 @@ function KpiCard({
 // ============================================================
 // PAGE COMPONENT
 // ============================================================
+const supabase = createClient()
+
 export default function DocumentosPage() {
-  const supabase = createClient()
   const { perfil, loading: roleLoading } = useRole()
 
   // Data state
