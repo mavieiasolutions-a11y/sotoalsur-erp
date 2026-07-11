@@ -47,15 +47,23 @@ function initLocalStorage() {
       localStorage.setItem(key, JSON.stringify(def))
     }
   }
-  initKey('demo_perfiles', DEFAULT_PERFILES)
-  initKey('demo_entidades', DEFAULT_ENTIDADES)
-  initKey('demo_obras', DEFAULT_OBRAS)
-  initKey('demo_finanzas', DEFAULT_FINANZAS)
-  initKey('demo_flota', DEFAULT_FLOTA)
-  initKey('demo_horarios', DEFAULT_HORARIOS)
-  initKey('demo_nominas', DEFAULT_NOMINAS)
-  initKey('demo_documentos', DEFAULT_DOCUMENTOS)
+  initKey('demo_perfiles_empleados', DEFAULT_PERFILES)
+  initKey('demo_directorio_entidades', DEFAULT_ENTIDADES)
+  initKey('demo_obras_proyectos', DEFAULT_OBRAS)
+  initKey('demo_contabilidad_finanzas', DEFAULT_FINANZAS)
+  initKey('demo_flota_vehiculos', DEFAULT_FLOTA)
+  initKey('demo_control_horarios', DEFAULT_HORARIOS)
+  initKey('demo_nominas_personal', DEFAULT_NOMINAS)
+  initKey('demo_documentos_vectoriales', DEFAULT_DOCUMENTOS)
   initKey('demo_session', { user: { id: 'mock-propietario-id', email: 'admin@sotoalsur.com' } })
+
+  // Limpieza de claves cortas obsoletas
+  const obsoletas = ['demo_perfiles', 'demo_entidades', 'demo_obras', 'demo_finanzas', 'demo_flota', 'demo_horarios', 'demo_nominas', 'demo_documentos']
+  obsoletas.forEach(k => {
+    if (localStorage.getItem(k)) {
+      localStorage.removeItem(k)
+    }
+  })
 }
 
 // ============================================================
